@@ -112,7 +112,8 @@ double parseInductance(const string& s)
         size_t idx;
         double val = stod(s, &idx);
         string unit = s.substr(idx);
-        if (unit == "m") val *= 1e-3;
+        if (unit == "m")
+            val *= 1e-3;
         else if (unit == "u" || unit == "µ")
             val *= 1e-6;
         else if (unit == "n")
@@ -178,6 +179,31 @@ public:
     }
 };
 
+class Diode : public Component
+{
+    string name, node1, node2, model;
+    double threshold;
+public:
+    Diode(string n, string n1, string n2, string m) : name(move(n)), node1(move(n1)), node2(move(n2)), model(move(m))
+    {
+        if (model == "D")
+            threshold = 0.0;
+        else if (model == "Z")
+            threshold = 0.7;
+        else
+            throw runtime_error("Error: Model " + model + " not found in library");
+    }
+    string getName() const override
+    {
+        return name;
+    }
+    void print() const
+    {
+        cout << "Diode " << name << " between " << node1 << " and " << node2
+             << " with model " << model << " (threshold: " << threshold << " V)" << endl;
+    }
+};
+
 class Node
 {
     string id;
@@ -226,7 +252,6 @@ public:
             delete c;
         for (auto n : nodes)
             delete n;
-
     }
 
     void addResistor(string& name, string& node1, string& node2, string& valueStr)
@@ -276,14 +301,14 @@ public:
 
         components.push_back(new Capacitor(name, node1, node2, value));
     }
-
     void deleteCapacitor(const string& name)
     {
         for (int i = 0; i < (int)components.size(); ++i)
         {
             if (components[i]->getName() == name)
             {
-                if (dynamic_cast<Capacitor*>(components[i])) {
+                if (dynamic_cast<Capacitor*>(components[i]))
+                {
                     delete components[i];
                     components.erase(components.begin() + i);
                     return;
@@ -292,7 +317,6 @@ public:
         }
         throw runtime_error("Error: Cannot delete capacitor; component not found");
     }
-
     void addInductor(string& name, string& node1, string& node2, string& valueStr)
     {
         if (name[0] != 'L')
@@ -311,7 +335,6 @@ public:
 
         components.push_back(new Inductor(name, node1, node2, value));
     }
-
     void deleteInductor(const string& name)
     {
         for (int i = 0; i < (int)components.size(); ++i)
@@ -328,14 +351,54 @@ public:
         }
         throw runtime_error("Error: Cannot delete inductor; component not found");
     }
+    void addDiode(const string& name, const string& node1, const string& node2, const string& model)
+    {
+        if (name.empty() || name[0] != 'D')
+            throw ElementNotFound(name);
+
+        for (const auto& c : components)
+            if (c->getName() == name)
+                throw runtime_error("Error: diode " + name + " already exists in the circuit");
+
+        if (model != "D" && model != "Z")
+            throw runtime_error("Error: Model " + model + " not found in library");
+
+        ensureNodeExists(node1);
+        ensureNodeExists(node2);
+
+        components.push_back(new Diode(name, node1, node2, model));
+    }
+
+    void deleteDiode(const string& name)
+    {
+        for (int i = 0; i < (int)components.size(); ++i)
+        {
+            if (components[i]->getName() == name)
+            {
+                const Diode* d = dynamic_cast<const Diode*>(components[i]);
+                if (d)
+                {
+                    delete components[i];
+                    components.erase(components.begin() + i);
+                    return;
+                }
+            }
+        }
+        throw runtime_error("Error: Cannot delete diode; component not found");
+    }
 
     void printAll() const
     {
         for (const auto& c : components)
         {
-            if (auto r = dynamic_cast<const Resistor*>(c)) r->print();
-            else if (auto l = dynamic_cast<const Inductor*>(c)) l->print();
-            else if (auto cp = dynamic_cast<const Capacitor*>(c)) cp->print();
+            if (auto r = dynamic_cast<const Resistor*>(c))
+                r->print();
+            else if (auto l = dynamic_cast<const Inductor*>(c))
+                l->print();
+            else if (auto cp = dynamic_cast<const Capacitor*>(c))
+                cp->print();
+            else if (auto d = dynamic_cast<const Diode*>(c))
+                d->print();
         }
     }
 };
@@ -376,7 +439,7 @@ void handler(Circuit& circuit, string& input)
         string node2 = match[3].str();
         string value = match[4].str();
         circuit.addCapacitor(name, node1, node2, value);
-        cout << "Capacitor " << name << " added successfully.\n";
+        cout << "Capacitor " << name << " added successfully." << endl;
         return;
     }
     regex delCapRegex(R"(^delete\s+([Cc][A-Za-z0-9_]+)$)");
@@ -386,7 +449,7 @@ void handler(Circuit& circuit, string& input)
         if (!isupper(name[0]))
             throw ElementNotFound(name);
         circuit.deleteCapacitor(name);
-        cout << "Capacitor " << name << " deleted successfully.\n";
+        cout << "Capacitor " << name << " deleted successfully." << endl;
         return;
     }
     regex addIndRegex(R"(^add\s+([Ll][A-Za-z0-9_]+)\s+([A-Za-z0-9_:]+)\s+([A-Za-z0-9_:]+)\s+([0-9.eE+-]+(u|U|µ|m|M|H)?)$)");
@@ -409,7 +472,32 @@ void handler(Circuit& circuit, string& input)
         if (!isupper(name[0]))
             throw ElementNotFound(name);
         circuit.deleteInductor(name);
-        cout << "Inductor " << name << " deleted successfully.\n";
+        cout << "Inductor " << name << " deleted successfully." << endl;
+        return;
+    }
+    regex addDiodeRegex(R"(^add\s+([Dd][A-Za-z0-9_]+)\s+([A-Za-z0-9_:]+)\s+([A-Za-z0-9_:]+)\s+([A-Za-z0-9_]+)$)");
+    if (regex_match(input, match, addDiodeRegex))
+    {
+        string name = match[1].str();
+        string node1 = match[2].str();
+        string node2 = match[3].str();
+        string model = match[4].str();
+        if (!isupper(name[0]))
+            throw ElementNotFound(name);
+        if (model != "D" && model != "Z")
+            throw runtime_error("Error: Model " + model + " not found in library");
+        circuit.addDiode(name, node1, node2, model);
+        cout << "Diode " << name << " added successfully.\n";
+        return;
+    }
+    regex delDiodeRegex(R"(^delete\s+(D[A-Za-z0-9_]+)$)");
+    if (regex_match(input, match, delDiodeRegex))
+    {
+        string name = match[1].str();
+        if (!isupper(name[0]))
+            throw ElementNotFound(name);
+        circuit.deleteDiode(name);
+        cout << "Diode " << name << " deleted successfully." << endl;
         return;
     }
     throw SyntaxError();
