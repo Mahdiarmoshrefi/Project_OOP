@@ -208,6 +208,7 @@ class Node
 {
     string id;
     double voltage;
+    bool grounded = false;
 public:
     explicit Node(string id) : id(move(id)), voltage(0.0) {}
 
@@ -224,8 +225,18 @@ public:
         voltage = v;
     }
 
-    void print() const {
+    void print() const
+    {
         cout << "Node " << id << " with voltage: " << voltage << " V" << endl;
+    }
+    bool isGrounded() const
+    {
+        return grounded;
+    }
+
+    void setGrounded(bool g)
+    {
+        grounded = g;
     }
 };
 class Circuit
@@ -387,6 +398,39 @@ public:
         throw runtime_error("Error: Cannot delete diode; component not found");
     }
 
+    Node* getOrCreateNode(const string& id)
+    {
+        for (Node* node : nodes)
+        {
+            if (node->getID() == id)
+                return node;
+        }
+        Node* newNode = new Node(id);
+        nodes.push_back(newNode);
+        return newNode;
+    }
+
+    void addGround(const string& name)
+    {
+        Node* node = getOrCreateNode(name);
+        node->setGrounded(true);
+        cout << "Ground connected to node " << name << " successfully." << endl;
+    }
+
+    void deleteGround(const string& nodeName)
+    {
+        for (Node* node : nodes)
+        {
+            if (node->getID() == nodeName)
+            {
+                node->setGrounded(false);
+                cout << "Ground removed from node " << nodeName << " successfully." << endl;
+                return;
+            }
+        }
+        throw runtime_error("Node does not exist");
+    }
+
     void printAll() const
     {
         for (const auto& c : components)
@@ -402,6 +446,18 @@ public:
         }
     }
 };
+
+bool isValVertexID(const string& s)
+{
+    if (s.empty())
+        return false;
+    if (!isalnum(s[0]))
+        return false;
+    for (char c : s)
+        if (!isalnum(c) && c != '_')
+            return false;
+    return true;
+}
 
 void handler(Circuit& circuit, string& input)
 {
@@ -498,6 +554,24 @@ void handler(Circuit& circuit, string& input)
             throw ElementNotFound(name);
         circuit.deleteDiode(name);
         cout << "Diode " << name << " deleted successfully." << endl;
+        return;
+    }
+    regex addGNDRegex(R"(^add\s+GND\s+([A-Za-z0-9_]+)$)");
+    if (regex_match(input, match, addGNDRegex))
+    {
+        string node = match[1].str();
+        if (!isValVertexID(node))
+            throw SyntaxError("Error: Syntax error");
+        circuit.addGround(node);
+        return;
+    }
+    regex delGNDRegex(R"(^delete\s+GND\s+([A-Za-z0-9_]+)$)");
+    if (regex_match(input, match, delGNDRegex))
+    {
+        string node = match[1].str();
+        if (!isValVertexID(node))
+            throw SyntaxError("Error: Syntax error");
+        circuit.deleteGround(node);
         return;
     }
     throw SyntaxError();
