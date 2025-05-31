@@ -102,6 +102,30 @@ public:
     }
 };
 
+class Node
+{
+    string id;
+    double voltage;
+public:
+    explicit Node(string id) : id(move(id)), voltage(0.0) {}
+
+    string getID() const
+    {
+        return id;
+    }
+    double getVoltage() const
+    {
+        return voltage;
+    }
+    void setVoltage(double v)
+    {
+        voltage = v;
+    }
+
+    void print() const {
+        cout << "Node " << id << " with voltage: " << voltage << " V" << endl;
+    }
+};
 class Circuit
 {
     vector<Component*> components;
@@ -110,11 +134,23 @@ class Circuit
     map<string, string> capNode2;
     map<string, string> capValue;
 
+    vector<Node*> nodes;
+
+    void ensureNodeExists(const string& id)
+    {
+        for (auto node : nodes)
+            if (node->getID() == id)
+                return;
+        nodes.push_back(new Node(id));
+    }
 public:
     ~Circuit()
     {
         for (auto c : components)
             delete c;
+        for (auto n : nodes)
+            delete n;
+
     }
 
     void addResistor(string& name, string& node1, string& node2, string& valueStr)
@@ -124,7 +160,11 @@ public:
                 throw DuplicateElement(name);
         if (name.empty() || name[0] != 'R')
             throw ElementNotFound(name);
+
         double value = parseRes(valueStr);
+        ensureNodeExists(node1);
+        ensureNodeExists(node2);
+
         components.push_back(new Resistor(name, node1, node2, value));
     }
 
@@ -154,10 +194,14 @@ public:
         if (numericValue <= 0)
             throw SyntaxError("Error: Capacitance cannot be zero or negative");
 
+        ensureNodeExists(node1);
+        ensureNodeExists(node2);
+
         capNode1[name] = node1;
         capNode2[name] = node2;
         capValue[name] = value;
     }
+
 
     void deleteCapacitor(const string& name)
     {
@@ -180,8 +224,12 @@ public:
         {
             cout << "Capacitor " << name << " between " << node1 << " and " << capNode2.at(name) << " with value " << capValue.at(name) << endl;
         }
+        cout << "--- Nodes ---" << endl;
+        for (const auto& n : nodes)
+            n->print();
     }
 };
+
 void handler(Circuit& circuit, string& input)
 {
     smatch match;
