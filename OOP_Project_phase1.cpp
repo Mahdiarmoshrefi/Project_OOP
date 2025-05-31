@@ -15,13 +15,40 @@ public:
     }
 };
 
-class DuplicateElement : public exception
+class DuplicateElementR : public exception
 {
     string msg;
 public:
-    explicit DuplicateElement(const string& name)
+    explicit DuplicateElementR(const string& name)
     {
         msg = "Error: Resistor " + name + " already exists in the circuit";
+    }
+    const char* what() const noexcept override
+    {
+        return msg.c_str();
+    }
+};
+
+class DuplicateElementC : public exception
+{
+    string msg;
+public:
+    explicit DuplicateElementC(const string& name)
+    {
+        msg = "Error: Capacitor " + name + " already exists in the circuit";
+    }
+    const char* what() const noexcept override
+    {
+        return msg.c_str();
+    }
+};
+class DuplicateElementI : public exception
+{
+    string msg;
+public:
+    explicit DuplicateElementI(const string& name)
+    {
+        msg = "Error: Inductor " + name + " already exists in the circuit";
     }
     const char* what() const noexcept override
     {
@@ -79,6 +106,30 @@ double parseCapValue(const string& val)
     }
 }
 
+double parseInductance(const string& s)
+{
+    try {
+        size_t idx;
+        double val = stod(s, &idx);
+        string unit = s.substr(idx);
+        if (unit == "m") val *= 1e-3;
+        else if (unit == "u" || unit == "µ")
+            val *= 1e-6;
+        else if (unit == "n")
+            val *= 1e-9;
+        else if (unit.empty())
+            val *= 1;
+        else if (unit.find('e') != string::npos || unit.find('E') != string::npos)
+            val = stod(s);
+        else throw SyntaxError("Error: Invalid unit for inductance");
+        return val;
+    }
+    catch (...)
+    {
+        throw SyntaxError("Error: Invalid value for inductance");
+    }
+}
+
 class Component
 {
 public:
@@ -99,6 +150,31 @@ public:
     void print() const
     {
         cout << "Resistor " << name << " between " << node1 << " and " << node2 << " with value " << resistanceValue << " Ohms" << endl;
+    }
+};
+
+class Capacitor : public Component
+{
+    string name, node1, node2;
+    double capacitanceValue;
+public:
+    Capacitor(string n, string n1, string n2, double val) : name(move(n)), node1(move(n1)), node2(move(n2)), capacitanceValue(val) {}
+    string getName() const override { return name; }
+    void print() const
+    {
+        cout << "Capacitor " << name << " between " << node1 << " and " << node2 << " with value " << capacitanceValue << " F" << endl;
+    }
+};
+
+class Inductor : public Component
+{
+    string name, node1, node2;
+    double inductanceValue;
+public:
+    Inductor(string n, string n1, string n2, double val) : name(move(n)), node1(move(n1)), node2(move(n2)), inductanceValue(val) {}
+    string getName() const override { return name; }
+    void print() const {
+        cout << "Inductor " << name << " between " << node1 << " and " << node2 << " with value " << inductanceValue << " H" << endl;
     }
 };
 
@@ -157,7 +233,7 @@ public:
     {
         for (const auto& c : components)
             if (c->getName() == name)
-                throw DuplicateElement(name);
+                throw DuplicateElementR(name);
         if (name.empty() || name[0] != 'R')
             throw ElementNotFound(name);
 
@@ -182,51 +258,85 @@ public:
         throw runtime_error("Error: Cannot delete resistor; component not found");
     }
 
-    void addCapacitor(string& name, string& node1, string& node2, string& value)
+    void addCapacitor(string& name, string& node1, string& node2, string& valueStr)
     {
         if (name.empty() || name[0] != 'C')
             throw ElementNotFound(name);
 
-        if (capNode1.count(name))
-            throw DuplicateElement(name);
+        for (const auto& c : components)
+            if (c->getName() == name)
+                throw DuplicateElementC(name);
 
-        double numericValue = parseCapValue(value);
-        if (numericValue <= 0)
+        double value = parseCapValue(valueStr);
+        if (value <= 0)
             throw SyntaxError("Error: Capacitance cannot be zero or negative");
 
         ensureNodeExists(node1);
         ensureNodeExists(node2);
 
-        capNode1[name] = node1;
-        capNode2[name] = node2;
-        capValue[name] = value;
+        components.push_back(new Capacitor(name, node1, node2, value));
     }
-
 
     void deleteCapacitor(const string& name)
     {
-        if (!capNode1.count(name))
-            throw runtime_error("Error: Cannot delete capacitor; component not found");
+        for (int i = 0; i < (int)components.size(); ++i)
+        {
+            if (components[i]->getName() == name)
+            {
+                if (dynamic_cast<Capacitor*>(components[i])) {
+                    delete components[i];
+                    components.erase(components.begin() + i);
+                    return;
+                }
+            }
+        }
+        throw runtime_error("Error: Cannot delete capacitor; component not found");
+    }
 
-        capNode1.erase(name);
-        capNode2.erase(name);
-        capValue.erase(name);
+    void addInductor(string& name, string& node1, string& node2, string& valueStr)
+    {
+        if (name[0] != 'L')
+            throw runtime_error("Error: Element " + name + " not found in library");
+
+        for (const auto& c : components)
+            if (c->getName() == name)
+                throw DuplicateElementI(name);
+
+        double value = parseInductance(valueStr);
+        if (value <= 0)
+            throw SyntaxError("Error: Inductance cannot be zero or negative");
+
+        ensureNodeExists(node1);
+        ensureNodeExists(node2);
+
+        components.push_back(new Inductor(name, node1, node2, value));
+    }
+
+    void deleteInductor(const string& name)
+    {
+        for (int i = 0; i < (int)components.size(); ++i)
+        {
+            if (components[i]->getName() == name)
+            {
+                if (dynamic_cast<Inductor*>(components[i]))
+                {
+                    delete components[i];
+                    components.erase(components.begin() + i);
+                    return;
+                }
+            }
+        }
+        throw runtime_error("Error: Cannot delete inductor; component not found");
     }
 
     void printAll() const
     {
         for (const auto& c : components)
         {
-            const Resistor* r = dynamic_cast<const Resistor*>(c);
-            if (r) r->print();
+            if (auto r = dynamic_cast<const Resistor*>(c)) r->print();
+            else if (auto l = dynamic_cast<const Inductor*>(c)) l->print();
+            else if (auto cp = dynamic_cast<const Capacitor*>(c)) cp->print();
         }
-        for (const auto& [name, node1] : capNode1)
-        {
-            cout << "Capacitor " << name << " between " << node1 << " and " << capNode2.at(name) << " with value " << capValue.at(name) << endl;
-        }
-        cout << "--- Nodes ---" << endl;
-        for (const auto& n : nodes)
-            n->print();
     }
 };
 
@@ -279,7 +389,31 @@ void handler(Circuit& circuit, string& input)
         cout << "Capacitor " << name << " deleted successfully.\n";
         return;
     }
+    regex addIndRegex(R"(^add\s+([Ll][A-Za-z0-9_]+)\s+([A-Za-z0-9_:]+)\s+([A-Za-z0-9_:]+)\s+([0-9.eE+-]+(u|U|µ|m|M|H)?)$)");
+    if (regex_match(input, match, addIndRegex))
+    {
+        string name = match[1].str();
+        if (!isupper(name[0]))
+            throw ElementNotFound(name);
+        string node1 = match[2].str();
+        string node2 = match[3].str();
+        string value = match[4].str();
+        circuit.addInductor(name, node1, node2, value);
+        cout << "Inductor " << name << " added successfully." << endl;
+        return;
+    }
+    regex delIndRegex(R"(^delete\s+([Ll][A-Za-z0-9_]+)$)");
+    if (regex_match(input, match, delIndRegex))
+    {
+        string name = match[1].str();
+        if (!isupper(name[0]))
+            throw ElementNotFound(name);
+        circuit.deleteInductor(name);
+        cout << "Inductor " << name << " deleted successfully.\n";
+        return;
+    }
     throw SyntaxError();
+
 }
 
 
