@@ -556,19 +556,29 @@ void handler(Circuit& circuit, string& input)
         cout << "Diode " << name << " deleted successfully." << endl;
         return;
     }
-    regex addGNDRegex(R"(^add\s+GND\s+([A-Za-z0-9_]+)$)");
+    regex addGNDRegex(R"(^add\s+([A-Za-z0-9_]+)\s+([A-Za-z0-9_]+)$)");
     if (regex_match(input, match, addGNDRegex))
     {
-        string node = match[1].str();
+        string elementType = match[1].str();
+        string node = match[2].str();
+        if (elementType != "GND")
+        {
+            throw runtime_error("Error: Element " + elementType + " not found in library");
+        }
         if (!isValVertexID(node))
             throw SyntaxError("Error: Syntax error");
         circuit.addGround(node);
         return;
     }
-    regex delGNDRegex(R"(^delete\s+GND\s+([A-Za-z0-9_]+)$)");
+    regex delGNDRegex(R"(^delete\s+([A-Za-z0-9_]+)\s+([A-Za-z0-9_]+)$)");
     if (regex_match(input, match, delGNDRegex))
     {
-        string node = match[1].str();
+        string elementType = match[1].str();
+        string node = match[2].str();
+        if (elementType != "GND")
+        {
+            throw runtime_error("Error: Element " + elementType + " not found in library");
+        }
         if (!isValVertexID(node))
             throw SyntaxError("Error: Syntax error");
         circuit.deleteGround(node);
@@ -603,3 +613,4 @@ int main()
     circuit.printAll();
     return 0;
 }
+//ground debug
