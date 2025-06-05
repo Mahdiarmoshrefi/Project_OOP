@@ -133,9 +133,22 @@ double parseInductance(const string& s)
 
 class Component
 {
+    string type;
+    string id;
 public:
     virtual string getName() const = 0;
     virtual ~Component() = default;
+    Component(const string& t, const string& id) : type(t), id(id) {}
+
+    const string& getType() const
+    {
+        return type;
+    }
+
+    string getInfo() const
+    {
+        return type + " " + id;
+    }
 };
 
 class Resistor : public Component
@@ -143,7 +156,8 @@ class Resistor : public Component
     string name, node1, node2;
     double resistanceValue;
 public:
-    Resistor(string n, string n1, string n2, double val) : name(move(n)), node1(move(n1)), node2(move(n2)), resistanceValue(val) {}
+    Resistor(string n, string n1, string n2, double val)
+            : Component("Resistor", n), name(move(n)), node1(move(n1)), node2(move(n2)), resistanceValue(val) {}
     string getName() const override
     {
         return name;
@@ -159,7 +173,8 @@ class Capacitor : public Component
     string name, node1, node2;
     double capacitanceValue;
 public:
-    Capacitor(string n, string n1, string n2, double val) : name(move(n)), node1(move(n1)), node2(move(n2)), capacitanceValue(val) {}
+    Capacitor(string n, string n1, string n2, double val)
+            : Component("Capacitor", n), name(move(n)), node1(move(n1)), node2(move(n2)), capacitanceValue(val) {}
     string getName() const override { return name; }
     void print() const
     {
@@ -172,7 +187,8 @@ class Inductor : public Component
     string name, node1, node2;
     double inductanceValue;
 public:
-    Inductor(string n, string n1, string n2, double val) : name(move(n)), node1(move(n1)), node2(move(n2)), inductanceValue(val) {}
+    Inductor(string n, string n1, string n2, double val)
+            : Component("Inductor", n), name(move(n)), node1(move(n1)), node2(move(n2)), inductanceValue(val) {}
     string getName() const override { return name; }
     void print() const {
         cout << "Inductor " << name << " between " << node1 << " and " << node2 << " with value " << inductanceValue << " H" << endl;
@@ -184,8 +200,9 @@ class Diode : public Component
     string name, node1, node2, model;
     double threshold;
 public:
-    Diode(string n, string n1, string n2, string m) : name(move(n)), node1(move(n1)), node2(move(n2)), model(move(m))
-    {
+    Diode(string n, string n1, string n2, string m)
+            : Component("Diode", n), name(move(n)), node1(move(n1)), node2(move(n2)), model(move(m))
+            {
         if (model == "D")
             threshold = 0.0;
         else if (model == "Z")
@@ -204,51 +221,51 @@ public:
     }
 };
 
-class Node
-{
+class Node {
     string id;
-    double voltage;
-    bool grounded = false;
+    bool grounded;
 public:
-    explicit Node(string id) : id(move(id)), voltage(0.0) {}
+    Node(const string& id) : id(id), grounded(false) {}
 
-    string getID() const
-    {
+    const string& getID() const {
         return id;
     }
-    double getVoltage() const
-    {
-        return voltage;
-    }
-    void setVoltage(double v)
-    {
-        voltage = v;
+
+    void setID(const string& newID) {
+        id = newID;
     }
 
-    void print() const
-    {
-        cout << "Node " << id << " with voltage: " << voltage << " V" << endl;
-    }
-    bool isGrounded() const
-    {
-        return grounded;
-    }
-
-    void setGrounded(bool g)
-    {
+    void setGrounded(bool g) {
         grounded = g;
     }
+
+    bool isGrounded() const {
+        return grounded;
+    }
 };
+
+#include <iostream>
+#include <vector>
+#include <map>
+#include <string>
+#include <stdexcept>
+
+using namespace std;
+
+// فرض می‌کنم کلاس‌های Component, Resistor, Capacitor, Inductor, Diode, Node و توابع parseRes, parseCapValue, parseInductance, کلاس‌های استثنا مثل DuplicateElementR، SyntaxError و ... تعریف شده باشند.
+
 class Circuit
 {
     vector<Component*> components;
 
+    // این مپ‌ها تو کد اصلی استفاده نشدن، ممکنه برای چیز دیگه باشن
     map<string, string> capNode1;
     map<string, string> capNode2;
     map<string, string> capValue;
 
     vector<Node*> nodes;
 
+    // این تابع چک می‌کنه نود با آیدی داده شده وجود داره یا نه، اگر نبود ایجادش می‌کنه
     void ensureNodeExists(const string& id)
     {
         for (auto node : nodes)
@@ -256,7 +273,9 @@ class Circuit
                 return;
         nodes.push_back(new Node(id));
     }
+
 public:
+    // دکتر
     ~Circuit()
     {
         for (auto c : components)
@@ -265,6 +284,7 @@ public:
             delete n;
     }
 
+    // اضافه کردن مقاومت
     void addResistor(string& name, string& node1, string& node2, string& valueStr)
     {
         for (const auto& c : components)
@@ -280,6 +300,7 @@ public:
         components.push_back(new Resistor(name, node1, node2, value));
     }
 
+    // حذف مقاومت
     void deleteResistor(string& name)
     {
         for (int i = 0; i < (int)components.size(); ++i)
@@ -294,6 +315,7 @@ public:
         throw runtime_error("Error: Cannot delete resistor; component not found");
     }
 
+    // اضافه کردن خازن
     void addCapacitor(string& name, string& node1, string& node2, string& valueStr)
     {
         if (name.empty() || name[0] != 'C')
@@ -312,6 +334,8 @@ public:
 
         components.push_back(new Capacitor(name, node1, node2, value));
     }
+
+    // حذف خازن
     void deleteCapacitor(const string& name)
     {
         for (int i = 0; i < (int)components.size(); ++i)
@@ -328,9 +352,11 @@ public:
         }
         throw runtime_error("Error: Cannot delete capacitor; component not found");
     }
+
+    // اضافه کردن سلف
     void addInductor(string& name, string& node1, string& node2, string& valueStr)
     {
-        if (name[0] != 'L')
+        if (name.empty() || name[0] != 'L')
             throw runtime_error("Error: Element " + name + " not found in library");
 
         for (const auto& c : components)
@@ -346,6 +372,8 @@ public:
 
         components.push_back(new Inductor(name, node1, node2, value));
     }
+
+    // حذف سلف
     void deleteInductor(const string& name)
     {
         for (int i = 0; i < (int)components.size(); ++i)
@@ -362,6 +390,8 @@ public:
         }
         throw runtime_error("Error: Cannot delete inductor; component not found");
     }
+
+    // اضافه کردن دیود
     void addDiode(const string& name, const string& node1, const string& node2, const string& model)
     {
         if (name.empty() || name[0] != 'D')
@@ -380,14 +410,14 @@ public:
         components.push_back(new Diode(name, node1, node2, model));
     }
 
+    // حذف دیود
     void deleteDiode(const string& name)
     {
         for (int i = 0; i < (int)components.size(); ++i)
         {
             if (components[i]->getName() == name)
             {
-                const Diode* d = dynamic_cast<const Diode*>(components[i]);
-                if (d)
+                if (dynamic_cast<Diode*>(components[i]))
                 {
                     delete components[i];
                     components.erase(components.begin() + i);
@@ -398,6 +428,7 @@ public:
         throw runtime_error("Error: Cannot delete diode; component not found");
     }
 
+    // گرفتن یا ایجاد نود
     Node* getOrCreateNode(const string& id)
     {
         for (Node* node : nodes)
@@ -410,6 +441,7 @@ public:
         return newNode;
     }
 
+    // اضافه کردن گره زمین
     void addGround(const string& name)
     {
         Node* node = getOrCreateNode(name);
@@ -417,6 +449,7 @@ public:
         cout << "Ground connected to node " << name << " successfully." << endl;
     }
 
+    // حذف زمین از گره
     void deleteGround(const string& nodeName)
     {
         for (Node* node : nodes)
@@ -431,6 +464,93 @@ public:
         throw runtime_error("Node does not exist");
     }
 
+    // گرفتن نام همه نودها
+    vector<string> getAllNodeNames() const
+    {
+        vector<string> names;
+        for (const Node* node : nodes)
+        {
+            names.push_back(node->getID());
+        }
+        return names;
+    }
+
+    // چاپ همه کامپوننت‌ها
+    void printAllComponents() const
+    {
+        for (const Component* comp : components)
+        {
+            cout << comp->getInfo() << endl;
+        }
+    }
+
+    // چاپ کامپوننت‌های یک نوع خاص
+    void printComponentsOfType(const string& type) const
+    {
+        bool found = false;
+        for (const Component* comp : components)
+        {
+            if (comp->getType() == type)
+            {
+                cout << comp->getInfo() << endl;
+                found = true;
+            }
+        }
+        if (!found)
+            cout << "No components of type " << type << " found." << endl;
+    }
+
+    // تغییر نام یک نود
+    void renameNode(const string& oldName, const string& newName)
+    {
+        if (!nodeExists(oldName))
+            throw runtime_error("ERROR: Node " + oldName + " does not exist in the circuit");
+        if (nodeExists(newName))
+            throw runtime_error("ERROR: Node name " + newName + " already exists");
+
+        for (Node* node : nodes)
+        {
+            if (node->getID() == oldName)
+            {
+                node->setID(newName);
+                return;
+            }
+        }
+    }
+
+    // چک کردن وجود نود
+    bool nodeExists(const string& name) const
+    {
+        for (const Node* node : nodes)
+        {
+            if (node->getID() == name)
+                return true;
+        }
+        return false;
+    }
+
+    bool gndExists = false;
+
+    // اضافه کردن نود (اصلاح شده)
+    void addNode(const string& nodeName)
+    {
+        for (auto node : nodes)
+        {
+            if (node->getID() == nodeName)
+                return; // اگر هست اضافه نکن
+        }
+        nodes.push_back(new Node(nodeName));
+        if (nodeName == "GND")
+            gndExists = true;
+    }
+
+    // چک کردن وجود GND
+    bool hasGND() const
+    {
+        return gndExists;
+    }
+
+    // چاپ همه کامپوننت‌ها با تابع print مخصوص هر نوع (اگر این متدها در کلاس‌ها پیاده شده باشند)
     void printAll() const
     {
         for (const auto& c : components)
@@ -584,11 +704,66 @@ void handler(Circuit& circuit, string& input)
         circuit.deleteGround(node);
         return;
     }
+    if (input == ".nodes")
+    {
+        vector<string> nodeList = circuit.getAllNodeNames(); // NOT const anymore
+        if (circuit.hasGND() && find(nodeList.begin(), nodeList.end(), "GND") == nodeList.end())
+        {
+            nodeList.push_back("GND");
+        }
+
+        if (nodeList.empty())
+        {
+            cout << "No nodes in the circuit." << endl;
+        }
+        else
+        {
+            cout << "Available nodes:\n";
+            for (size_t i = 0; i < nodeList.size(); ++i)
+            {
+                cout << nodeList[i];
+                if (i < nodeList.size() - 1)
+                    cout << ", ";
+            }
+            cout << endl;
+        }
+        return;
+    }
+
+    regex listRegex(R"(^\.list(?:\s+([A-Za-z0-9_]+))?$)");
+    if (regex_match(input, match, listRegex))
+    {
+        if (match[1].matched)
+        {
+            string type = match[1].str();
+            circuit.printComponentsOfType(type);
+        }
+        else
+        {
+            circuit.printAllComponents();
+        }
+        return;
+    }
+    regex renameNodeRegex(R"(^\.rename\s+node\s+([A-Za-z0-9_]+)\s+([A-Za-z0-9_]+)$)");
+    if (regex_match(input, match, renameNodeRegex))
+    {
+        string oldName = match[1].str();
+        string newName = match[2].str();
+        if (!isValVertexID(oldName) || !isValVertexID(newName))
+            throw SyntaxError("ERROR: Invalid syntax - correct format:\n.rename node <old_name> <new_name>");
+        try
+        {
+            circuit.renameNode(oldName, newName);
+            cout << "SUCCESS: Node renamed from " << oldName << " to " << newName << endl;
+        }
+        catch (const runtime_error& e)
+        {
+            cerr << e.what() << endl;
+        }
+        return;
+    }
     throw SyntaxError();
-
 }
-
-
 int main()
 {
     Circuit circuit;
@@ -613,4 +788,3 @@ int main()
     circuit.printAll();
     return 0;
 }
-//ground debug
