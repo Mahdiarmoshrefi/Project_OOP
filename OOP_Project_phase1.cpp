@@ -131,78 +131,86 @@ double parseInductance(const string& s)
     }
 }
 
-class Component
-{
+class Component {
+protected:
     string type;
     string id;
+    string node1, node2;
+
 public:
+    Component(const string& t, const string& id, const string& n1, const string& n2)
+            : type(t), id(id), node1(n1), node2(n2) {}
+
     virtual string getName() const = 0;
     virtual ~Component() = default;
-    Component(const string& t, const string& id) : type(t), id(id) {}
 
-    const string& getType() const
-    {
-        return type;
+    const string& getType() const { return type; }
+    const string& getID() const { return id; }
+    const string& getNode1() const { return node1; }
+    const string& getNode2() const { return node2; }
+
+    string getInfo() const {
+        return type + " " + id + " between " + node1 + " and " + node2;
     }
 
-    string getInfo() const
-    {
-        return type + " " + id;
+    virtual void print() const = 0;
+
+    virtual void debug() const {
+        cout << "[DEBUG] " << getInfo() << endl;
     }
 };
 
-class Resistor : public Component
-{
-    string name, node1, node2;
+
+class Resistor : public Component {
     double resistanceValue;
 public:
-    Resistor(string n, string n1, string n2, double val)
-            : Component("Resistor", n), name(move(n)), node1(move(n1)), node2(move(n2)), resistanceValue(val) {}
-    string getName() const override
-    {
-        return name;
-    }
-    void print() const
-    {
-        cout << "Resistor " << name << " between " << node1 << " and " << node2 << " with value " << resistanceValue << " Ohms" << endl;
+    Resistor(const string& id, const string& n1, const string& n2, double val)
+            : Component("Resistor", id, n1, n2), resistanceValue(val) {}
+
+    string getName() const override { return id; }
+
+    void print() const override {
+        cout << "Resistor " << id << " between " << node1 << " and " << node2
+             << " with value " << resistanceValue << " Ohms" << endl;
     }
 };
 
-class Capacitor : public Component
-{
-    string name, node1, node2;
+
+class Capacitor : public Component {
     double capacitanceValue;
 public:
-    Capacitor(string n, string n1, string n2, double val)
-            : Component("Capacitor", n), name(move(n)), node1(move(n1)), node2(move(n2)), capacitanceValue(val) {}
-    string getName() const override { return name; }
-    void print() const
-    {
-        cout << "Capacitor " << name << " between " << node1 << " and " << node2 << " with value " << capacitanceValue << " F" << endl;
+    Capacitor(const string& id, const string& n1, const string& n2, double val)
+            : Component("Capacitor", id, n1, n2), capacitanceValue(val) {}
+
+    string getName() const override { return id; }
+
+    void print() const override {
+        cout << "Capacitor " << id << " between " << node1 << " and " << node2
+             << " with value " << capacitanceValue << " F" << endl;
     }
 };
 
-class Inductor : public Component
-{
-    string name, node1, node2;
+
+class Inductor : public Component {
     double inductanceValue;
 public:
-    Inductor(string n, string n1, string n2, double val)
-            : Component("Inductor", n), name(move(n)), node1(move(n1)), node2(move(n2)), inductanceValue(val) {}
-    string getName() const override { return name; }
-    void print() const {
-        cout << "Inductor " << name << " between " << node1 << " and " << node2 << " with value " << inductanceValue << " H" << endl;
+    Inductor(const string& id, const string& n1, const string& n2, double val)
+            : Component("Inductor", id, n1, n2), inductanceValue(val) {}
+
+    string getName() const override { return id; }
+
+    void print() const override {
+        cout << "Inductor " << id << " between " << node1 << " and " << node2
+             << " with value " << inductanceValue << " H" << endl;
     }
 };
 
-class Diode : public Component
-{
-    string name, node1, node2, model;
+class Diode : public Component {
+    string model;
     double threshold;
 public:
-    Diode(string n, string n1, string n2, string m)
-            : Component("Diode", n), name(move(n)), node1(move(n1)), node2(move(n2)), model(move(m))
-            {
+    Diode(const string& id, const string& n1, const string& n2, const string& m)
+            : Component("Diode", id, n1, n2), model(m) {
         if (model == "D")
             threshold = 0.0;
         else if (model == "Z")
@@ -210,16 +218,61 @@ public:
         else
             throw runtime_error("Error: Model " + model + " not found in library");
     }
-    string getName() const override
-    {
-        return name;
-    }
-    void print() const
-    {
-        cout << "Diode " << name << " between " << node1 << " and " << node2
+
+    string getName() const override { return id; }
+
+    void print() const override {
+        cout << "Diode " << id << " between " << node1 << " and " << node2
              << " with model " << model << " (threshold: " << threshold << " V)" << endl;
     }
 };
+
+class VoltageSource : public Component {
+public:
+    double value;
+
+    VoltageSource(const string& id, const string& n1, const string& n2, double val)
+            : Component("VoltageSource", id, n1, n2), value(val) {}
+
+    string getName() const override {
+        return id;
+    }
+
+    void print() const override {
+        cout << "Voltage Source " << id << " between " << node1 << " and " << node2
+             << " with value " << value << " V" << endl;
+    }
+
+    void debug() const override {
+        Component::debug();
+        cout << "[DEBUG] Voltage value: " << value << " V" << endl;
+    }
+};
+
+
+class CurrentSource : public Component {
+public:
+    double value;
+
+    CurrentSource(const string& id, const string& n1, const string& n2, double val)
+            : Component("CurrentSource", id, n1, n2), value(val) {}
+
+    string getName() const override {
+        return id;
+    }
+
+    void print() const override {
+        cout << "Current Source " << id << " between " << node1 << " and " << node2
+             << " with value " << value << " A" << endl;
+    }
+
+    void debug() const override {
+        Component::debug();
+        cout << "[DEBUG] Current value: " << value << " A" << endl;
+    }
+};
+
+
 
 class Node {
     string id;
@@ -244,21 +297,10 @@ public:
     }
 };
 
-#include <iostream>
-#include <vector>
-#include <map>
-#include <string>
-#include <stdexcept>
-
-using namespace std;
-
-// فرض می‌کنم کلاس‌های Component, Resistor, Capacitor, Inductor, Diode, Node و توابع parseRes, parseCapValue, parseInductance, کلاس‌های استثنا مثل DuplicateElementR، SyntaxError و ... تعریف شده باشند.
-
 class Circuit
 {
     vector<Component*> components;
 
-    // این مپ‌ها تو کد اصلی استفاده نشدن، ممکنه برای چیز دیگه باشن
     map<string, string> capNode1;
     map<string, string> capNode2;
     map<string, string> capValue;
@@ -283,7 +325,17 @@ public:
         for (auto n : nodes)
             delete n;
     }
+    void addVoltageSource(const string& name, const string& node1, const string& node2, double value)
+    {
+        components.push_back(new VoltageSource(name, node1, node2, value));
+        cout << "Voltage Source " << name << " added.\n";
+    }
 
+    void addCurrentSource(const string& name, const string& node1, const string& node2, double value)
+    {
+        components.push_back(new CurrentSource(name, node1, node2, value));
+        cout << "Current Source " << name << " added.\n";
+    }
     // اضافه کردن مقاومت
     void addResistor(string& name, string& node1, string& node2, string& valueStr)
     {
@@ -550,7 +602,6 @@ public:
         return gndExists;
     }
 
-    // چاپ همه کامپوننت‌ها با تابع print مخصوص هر نوع (اگر این متدها در کلاس‌ها پیاده شده باشند)
     void printAll() const
     {
         for (const auto& c : components)
@@ -761,6 +812,33 @@ void handler(Circuit& circuit, string& input)
             cerr << e.what() << endl;
         }
         return;
+    }
+    regex voltageRegex(R"(^add\s+VoltageSource\s+(\w+)\s+(\w+)\s+(\w+)\s+([+-]?\d*\.?\d+(?:[eE][+-]?\d+)?))");
+    regex currentRegex(R"(^add\s+CurrentSource\s+(\w+)\s+(\w+)\s+(\w+)\s+([+-]?\d*\.?\d+(?:[eE][+-]?\d+)?))");
+
+    if (regex_match(input, match, voltageRegex))
+    {
+        string name = match[1];
+        string n1 = match[2];
+        string n2 = match[3];
+        double value = stod(match[4]);
+        circuit.addVoltageSource(name, n1, n2, value);
+        return;
+    }
+    else if (regex_match(input, match, currentRegex))
+    {
+        string name = match[1];
+        string n1 = match[2];
+        string n2 = match[3];
+        double value = stod(match[4]);
+        circuit.addCurrentSource(name, n1, n2, value);
+        return;
+    }
+    else if (input.find("add VoltageSource") == 0) {
+        cout << "ERROR: Invalid syntax - correct format:\nadd VoltageSource <Name> <Node1> <Node2> <Value>\n";
+    }
+    else if (input.find("add CurrentSource") == 0) {
+        cout << "ERROR: Invalid syntax - correct format:\nadd CurrentSource <Name> <Node1> <Node2> <Value>\n";
     }
     throw SyntaxError();
 }
