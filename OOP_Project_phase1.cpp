@@ -87,6 +87,18 @@ double parseRes(const string& valueStr)
     return value;
 }
 
+double parseVoltage(const string& s) {
+    return stod(s);
+}
+
+double parseFrequency(const string& s) {
+    return stod(s);
+}
+
+double parsePhase(const string& s) {
+    return stod(s);
+}
+
 double parseCapValue(const string& val)
 {
     double num;
@@ -272,26 +284,56 @@ public:
     }
 };
 
+class SineVoltageSource : public Component {
+    double Voffset;
+    double Vamplitude;
+    double frequency;
 
+public:
+    SineVoltageSource(const string& id, const string& n1, const string& n2,
+                      double offset, double amplitude, double freq)
+            : Component("SineVoltageSource", id, n1, n2),
+              Voffset(offset), Vamplitude(amplitude), frequency(freq) {}
 
+    string getName() const override
+    {
+        return id;
+    }
+
+    void print() const override
+    {
+        cout << "Sine Voltage Source " << id << " between " << node1 << " and " << node2
+             << " with Voffset: " << Voffset << " V, Amplitude: " << Vamplitude
+             << " V, Frequency: " << frequency << " Hz" << endl;
+    }
+
+    void debug() const override
+    {
+        Component::debug();
+        cout << "[DEBUG] SIN source: offset = " << Voffset
+             << ", amplitude = " << Vamplitude
+             << ", frequency = " << frequency << endl;
+    }
+
+    double valueAt(double t) const
+    {
+        return Voffset + Vamplitude * sin(2 * M_PI * frequency * t);
+    }
+};
 class Node {
     string id;
     bool grounded;
 public:
     Node(const string& id) : id(id), grounded(false) {}
-
     const string& getID() const {
         return id;
     }
-
     void setID(const string& newID) {
         id = newID;
     }
-
     void setGrounded(bool g) {
         grounded = g;
     }
-
     bool isGrounded() const {
         return grounded;
     }
@@ -307,7 +349,6 @@ class Circuit
 
     vector<Node*> nodes;
 
-    // این تابع چک می‌کنه نود با آیدی داده شده وجود داره یا نه، اگر نبود ایجادش می‌کنه
     void ensureNodeExists(const string& id)
     {
         for (auto node : nodes)
@@ -404,6 +445,21 @@ public:
         }
         throw runtime_error("Error: Cannot delete capacitor; component not found");
     }
+
+    void addSineVoltage(const string& name, const string& node1, const string& node2,
+                        double offset, double amplitude, double frequency)
+    {
+
+        for (const auto& c : components)
+            if (c->getName() == name)
+                throw DuplicateElementI(name);
+
+        ensureNodeExists(node1);
+        ensureNodeExists(node2);
+
+        components.push_back(new SineVoltageSource(name, node1, node2, offset, amplitude, frequency));
+    }
+
 
     // اضافه کردن سلف
     void addInductor(string& name, string& node1, string& node2, string& valueStr)
@@ -614,6 +670,10 @@ public:
                 cp->print();
             else if (auto d = dynamic_cast<const Diode*>(c))
                 d->print();
+            else if (auto V = dynamic_cast<const VoltageSource*>(c))
+                V->print();
+            else if (auto C = dynamic_cast<const CurrentSource*>(c))
+                c->print();
         }
     }
 };
@@ -633,6 +693,33 @@ bool isValVertexID(const string& s)
 void handler(Circuit& circuit, string& input)
 {
     smatch match;
+    regex voltageRegex(R"(^add\s+VoltageSource\s+(\w+)\s+(\w+)\s+(\w+)\s+([+-]?\d*\.?\d+(?:[eE][+-]?\d+)?))");
+    regex currentRegex(R"(^add\s+CurrentSource\s+(\w+)\s+(\w+)\s+(\w+)\s+([+-]?\d*\.?\d+(?:[eE][+-]?\d+)?))");
+
+    if (regex_match(input, match, voltageRegex))
+    {
+        string name = match[1];
+        string n1 = match[2];
+        string n2 = match[3];
+        double value = stod(match[4]);
+        circuit.addVoltageSource(name, n1, n2, value);
+        return;
+    }
+    else if (regex_match(input, match, currentRegex))
+    {
+        string name = match[1];
+        string n1 = match[2];
+        string n2 = match[3];
+        double value = stod(match[4]);
+        circuit.addCurrentSource(name, n1, n2, value);
+        return;
+    }
+    else if (input.find("add VoltageSource") == 0) {
+        cout << "ERROR: Invalid syntax - correct format:\nadd VoltageSource <Name> <Node1> <Node2> <Value>\n";
+    }
+    else if (input.find("add CurrentSource") == 0) {
+        cout << "ERROR: Invalid syntax - correct format:\nadd CurrentSource <Name> <Node1> <Node2> <Value>\n";
+    }
     regex addResRegex(R"(^add\s+([Rr][A-Za-z0-9_]+)\s+([A-Za-z0-9_:]+)\s+([A-Za-z0-9_:]+)\s+([0-9.eE+-]+[kK]?|[0-9.eE+-]+(Meg|M)?)$)");
     if (regex_match(input, match, addResRegex))
     {
@@ -813,32 +900,24 @@ void handler(Circuit& circuit, string& input)
         }
         return;
     }
-    regex voltageRegex(R"(^add\s+VoltageSource\s+(\w+)\s+(\w+)\s+(\w+)\s+([+-]?\d*\.?\d+(?:[eE][+-]?\d+)?))");
-    regex currentRegex(R"(^add\s+CurrentSource\s+(\w+)\s+(\w+)\s+(\w+)\s+([+-]?\d*\.?\d+(?:[eE][+-]?\d+)?))");
+    std::regex sinSourceRegex(
+            R"(add\s+V([\w\-\.]+)\s+([\w\-\.]+)\s+([\w\-\.]+)\s+SIN\s*\(\s*([+-]?\d+(?:\.\d+)?)\s+([+-]?\d+(?:\.\d+)?)\s+([+-]?\d+(?:\.\d+)?)\s*\))", std::regex_constants::icase);
 
-    if (regex_match(input, match, voltageRegex))
+    if (std::regex_match(input, match, sinSourceRegex))
     {
-        string name = match[1];
-        string n1 = match[2];
-        string n2 = match[3];
-        double value = stod(match[4]);
-        circuit.addVoltageSource(name, n1, n2, value);
-        return;
+        string id = match[1];
+        string node1 = match[2];
+        string node2 = match[3];
+        double Voffset = std::stod(match[4]);
+        double Vamplitude = std::stod(match[5]);
+        double freq = std::stod(match[6]);
+
+        circuit.addSineVoltage(id, node1, node2, Voffset, Vamplitude, freq);
     }
-    else if (regex_match(input, match, currentRegex))
+    else
     {
-        string name = match[1];
-        string n1 = match[2];
-        string n2 = match[3];
-        double value = stod(match[4]);
-        circuit.addCurrentSource(name, n1, n2, value);
-        return;
-    }
-    else if (input.find("add VoltageSource") == 0) {
-        cout << "ERROR: Invalid syntax - correct format:\nadd VoltageSource <Name> <Node1> <Node2> <Value>\n";
-    }
-    else if (input.find("add CurrentSource") == 0) {
-        cout << "ERROR: Invalid syntax - correct format:\nadd CurrentSource <Name> <Node1> <Node2> <Value>\n";
+        cerr << "[SYNTAX ERROR] Invalid syntax for sine voltage source. Expected format:\n";
+        cerr << "add V<name> <node+> <node-> SIN(<Voffset> <Vamplitude> <Frequency>)\n";
     }
     throw SyntaxError();
 }
