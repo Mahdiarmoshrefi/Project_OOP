@@ -358,7 +358,8 @@ class Circuit
     }
 
 public:
-    // دکتر
+    vector<Node*>& getNodes() { return nodes; }
+    vector<Component*>& getComponents() { return components; }
     ~Circuit()
     {
         for (auto c : components)
@@ -921,6 +922,41 @@ void handler(Circuit& circuit, string& input)
     }
     throw SyntaxError();
 }
+void validateCircuit(Circuit& circuit)
+{
+    auto& nodes = circuit.getNodes();
+    auto& components = circuit.getComponents();
+
+    // 1. بررسی وجود دقیق یک گره زمین
+    int groundCount = 0;
+    for (auto node : nodes)
+    {
+        if (node->getID() == "0" || node->getID() == "GND" || node->getID() == "ground")  // این‌ها معمولاً اسم زمین هستن
+            groundCount++;
+    }
+    if (groundCount == 0)
+        throw runtime_error("Error: No ground node detected in the circuit.");
+    if (groundCount > 1)
+        throw runtime_error("Error: More than one ground node detected in the circuit.");
+
+    set<string> nodeNames;
+    for (auto node : nodes)
+    {
+        if (nodeNames.find(node->getID()) != nodeNames.end())
+            throw runtime_error("Error: Duplicate node name detected: " + node->getID());
+        nodeNames.insert(node->getID());
+    }
+
+    set<string> compNames;
+    for (auto comp : components)
+    {
+        if (compNames.find(comp->getID()) != compNames.end())
+            throw runtime_error("Error: Duplicate component name detected: " + comp->getID());
+        compNames.insert(comp->getID());
+    }
+
+}
+
 int main()
 {
     Circuit circuit;
@@ -941,6 +977,7 @@ int main()
             cout << ex.what() << endl;
         }
     }
+    validateCircuit(circuit);
     cout << endl << "Final circuit:" << endl;
     circuit.printAll();
     return 0;
