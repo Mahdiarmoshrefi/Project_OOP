@@ -1007,7 +1007,7 @@ void validateCircuit(Circuit& circuit)
     int groundCount = 0;
     for (auto node : nodes)
     {
-        if (node->isGrounded()) // 👈 درست‌ترین روش
+        if (node->isGrounded())
             groundCount++;
     }
 
@@ -1032,6 +1032,93 @@ void validateCircuit(Circuit& circuit)
         compNames.insert(comp->getID());
     }
 }
+
+vector<string> schematics = {
+        "schematics/draft1.txt",
+        "schematics/draft2.txt",
+        "schematics/draft3.txt",
+        "schematics/elecphase1.txt"
+};
+bool isNumber(const string& s) {
+    for (char c : s) if (!isdigit(c)) return false;
+    return !s.empty();
+}
+
+void displaySchematics() {
+    cout << "-choose existing schematic:" << endl;
+    for (size_t i = 0; i < schematics.size(); ++i) {
+        cout << i + 1 << "-" << schematics[i] << endl;
+    }
+}
+
+void showNetlist(const string& filename) {
+    ifstream file(filename);
+    if (!file.is_open()) {
+        cout << "-Error : Cannot open schematic file" << endl;
+        return;
+    }
+    cout << filename << ":" << endl;
+    string line;
+    while (getline(file, line)) {
+        cout << line << endl;
+    }
+    file.close();
+}
+
+void chooseExistingSchematic() {
+    while (true) {
+        displaySchematics();
+        string input;
+        cout << ">>> ";
+        getline(cin, input);
+        if (input == "return") return;
+        if (isNumber(input)) {
+            int num = stoi(input);
+            if (num >= 1 && num <= (int)schematics.size()) {
+                string filename = schematics[num - 1];  // اینجا .txt اضافه نکن
+                showNetlist(filename);
+                continue;
+            }
+        }
+        cout << "-Error : Inappropriate input" << endl;
+    }
+}
+
+void loadNewFile(const string& filepath) {
+    ifstream file(filepath);
+    if (!file.is_open()) {
+        cout << "-Error : Cannot open file" << endl;
+        return;
+    }
+    cout << filepath << ":" << endl;
+    string line;
+    while (getline(file, line)) {
+        cout << line << endl;
+    }
+    file.close();
+}
+
+void showFileMenu() {
+    while (true) {
+        cout << "-show existing schematics" << endl;
+        cout << "-NewFile <file_path>" << endl;
+        cout << "-return" << endl;
+        cout << ">>> ";
+        string command;
+        getline(cin, command);
+
+        if (command == "-show existing schematics") {
+            chooseExistingSchematic();
+        } else if (command.substr(0, 8) == "NewFile ") {
+            string filepath = command.substr(8);
+            loadNewFile(filepath);
+        } else if (command == "return") {
+            break;
+        } else {
+            cout << "-Error : Invalid command" << endl;
+        }
+    }
+}
 int main()
 {
     vector<Circuit> circuits;
@@ -1045,22 +1132,32 @@ int main()
         cout << "> ";
         getline(cin, line);
 
-        if (line == "exit")
-        {
+        if (line == "show existing schematics") {
+            displaySchematics();
+            continue;
+        }
+        else if (line == "choose existing schematic") {
+            chooseExistingSchematic();
+            continue;
+        }
+        else if (line.substr(0, 8) == "NewFile ") {
+            string filePath = line.substr(8);
+            loadNewFile(filePath);
+            continue;
+        }
+        else if (line == "exit") {
             circuits.push_back(currentCircuit);
             try {
                 validateCircuit(currentCircuit);
                 circuitValidity.push_back(true);
             } catch (const exception& ex) {
                 cout << "[ERROR] Final circuit is invalid:\n" << ex.what() << endl;
-                circuitValidity.push_back(false);  
+                circuitValidity.push_back(false);
             }
             break;
         }
-
-        if (line == "another circuit")
-        {
-            circuits.push_back(currentCircuit);  
+        else if (line == "another circuit") {
+            circuits.push_back(currentCircuit);
             try {
                 validateCircuit(currentCircuit);
                 circuitValidity.push_back(true);
@@ -1068,8 +1165,7 @@ int main()
                 cout << "[ERROR] Cannot start a new circuit:\n" << ex.what() << endl;
                 circuitValidity.push_back(false);
             }
-
-            currentCircuit = Circuit();  
+            currentCircuit = Circuit();
             cout << "Switched to a new circuit.\n";
             continue;
         }
@@ -1088,11 +1184,12 @@ int main()
         cout << "Circuit " << i + 1 << ":\n";
         if (!circuitValidity[i])
             cout << "[!] This circuit is INVALID.\n";
-
         circuits[i].printAll();
     }
 
     return 0;
 }
+
+
 
 
