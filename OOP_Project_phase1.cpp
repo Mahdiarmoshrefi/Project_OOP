@@ -1,4 +1,6 @@
 #include <bits/stdc++.h>
+#include <filesystem>
+namespace fs = std::filesystem;
 using namespace std;
 
 class ElementNotFound : public exception
@@ -755,6 +757,73 @@ bool isValVertexID(const string& s)
     return true;
 }
 
+void showExistingSchematics() {
+    string folderPath = "./schematics";
+    vector<string> filenames;
+
+    for (const auto& entry : fs::directory_iterator(folderPath)) {
+        if (entry.is_regular_file()) {
+            string name = entry.path().filename().string();
+            filenames.push_back(name);
+        }
+    }
+
+    if (filenames.empty()) {
+        cout << "No schematics found in the 'schematics' folder.\n";
+        return;
+    }
+
+    while (true) {
+        cout << "-choose existing schematic:\n";
+        for (int i = 0; i < filenames.size(); ++i) {
+            string name = filenames[i];
+            size_t dot = name.find_last_of('.');
+            if (dot != string::npos) name = name.substr(0, dot);
+            cout << i + 1 << "-" << name << '\n';
+        }
+
+        cout << "Type a number to view schematic, or 'return' to go back:\n";
+        string input;
+        getline(cin, input);
+
+        if (input == "return") break;
+
+        bool isValid = true;
+        for (char c : input) {
+            if (!isdigit(c)) {
+                isValid = false;
+                break;
+            }
+        }
+
+        if (!isValid) {
+            cout << "-Error : Inappropriate input\n";
+            continue;
+        }
+
+        int idx = stoi(input);
+        if (idx < 1 || idx > filenames.size()) {
+            cout << "-Error : Inappropriate input\n";
+            continue;
+        }
+
+        string fullPath = folderPath + "/" + filenames[idx - 1];
+        ifstream file(fullPath);
+        if (!file.is_open()) {
+            cout << "Failed to open file: " << fullPath << '\n';
+            continue;
+        }
+
+        cout << "\nContents of " << filenames[idx - 1] << ":\n";
+        string line;
+        while (getline(file, line)) {
+            cout << line << '\n';
+        }
+        file.close();
+
+        cout << "\n---------------------------\n\n";
+    }
+}
 void handler(Circuit& circuit, string& input)
 {
     smatch match;
@@ -1044,81 +1113,41 @@ bool isNumber(const string& s) {
     return !s.empty();
 }
 
-void displaySchematics() {
-    cout << "-choose existing schematic:" << endl;
-    for (size_t i = 0; i < schematics.size(); ++i) {
-        cout << i + 1 << "-" << schematics[i] << endl;
-    }
-}
+string convertToCommand(const string& line) {
+    istringstream iss(line);
+    string first;
+    iss >> first;
 
-void showNetlist(const string& filename) {
-    ifstream file(filename);
-    if (!file.is_open()) {
-        cout << "-Error : Cannot open schematic file" << endl;
-        return;
-    }
-    cout << filename << ":" << endl;
-    string line;
-    while (getline(file, line)) {
-        cout << line << endl;
-    }
-    file.close();
-}
+    if (first.empty()) return line;
 
-void chooseExistingSchematic() {
-    while (true) {
-        displaySchematics();
-        string input;
-        cout << ">>> ";
-        getline(cin, input);
-        if (input == "return") return;
-        if (isNumber(input)) {
-            int num = stoi(input);
-            if (num >= 1 && num <= (int)schematics.size()) {
-                string filename = schematics[num - 1];  // اینجا .txt اضافه نکن
-                showNetlist(filename);
-                continue;
-            }
-        }
-        cout << "-Error : Inappropriate input" << endl;
+    char c = toupper(first[0]);
+    if (c == 'R' || c == 'C' || c == 'L' || c == 'V' || c == 'I' || c == 'D') {
+        return "add " + line;
     }
-}
 
-void loadNewFile(const string& filepath) {
+    return line;
+}
+void loadSchematicFromFile(const string& filepath, Circuit& currentCircuit)
+{
     ifstream file(filepath);
     if (!file.is_open()) {
-        cout << "-Error : Cannot open file" << endl;
+        cout << "[ERROR] Could not open file: " << filepath << endl;
         return;
     }
-    cout << filepath << ":" << endl;
+
     string line;
     while (getline(file, line)) {
-        cout << line << endl;
+        string converted = convertToCommand(line);
+        try {
+            handler(currentCircuit, converted);
+        } catch (const exception& ex) {
+            cout << "[Exception in file] " << ex.what() << endl;
+        }
     }
+
     file.close();
 }
 
-void showFileMenu() {
-    while (true) {
-        cout << "-show existing schematics" << endl;
-        cout << "-NewFile <file_path>" << endl;
-        cout << "-return" << endl;
-        cout << ">>> ";
-        string command;
-        getline(cin, command);
-
-        if (command == "-show existing schematics") {
-            chooseExistingSchematic();
-        } else if (command.substr(0, 8) == "NewFile ") {
-            string filepath = command.substr(8);
-            loadNewFile(filepath);
-        } else if (command == "return") {
-            break;
-        } else {
-            cout << "-Error : Invalid command" << endl;
-        }
-    }
-}
 int main()
 {
     vector<Circuit> circuits;
@@ -1126,26 +1155,20 @@ int main()
     Circuit currentCircuit;
     string line;
 
+    vector<string> schematicFiles;
+
+    for (const auto& entry : fs::directory_iterator("./pictures/schematics")) {
+        if (entry.is_regular_file())
+            schematicFiles.push_back(entry.path().filename().string());
+    }
+
     cout << "Enter commands (type 'exit' to quit):\n";
     while (true)
     {
         cout << "> ";
         getline(cin, line);
 
-        if (line == "show existing schematics") {
-            displaySchematics();
-            continue;
-        }
-        else if (line == "choose existing schematic") {
-            chooseExistingSchematic();
-            continue;
-        }
-        else if (line.substr(0, 8) == "NewFile ") {
-            string filePath = line.substr(8);
-            loadNewFile(filePath);
-            continue;
-        }
-        else if (line == "exit") {
+        if (line == "exit") {
             circuits.push_back(currentCircuit);
             try {
                 validateCircuit(currentCircuit);
@@ -1169,7 +1192,10 @@ int main()
             cout << "Switched to a new circuit.\n";
             continue;
         }
-
+        else if (line == "show existing schematics") {
+            showExistingSchematics();
+            continue;
+        }
         try {
             handler(currentCircuit, line);
         } catch (const exception& ex) {
@@ -1177,15 +1203,15 @@ int main()
         }
     }
 
-    cout << "\n All Circuits Summary:\n";
-    for (int i = 0; i < circuits.size(); ++i)
-    {
-        cout << "-----------------------------\n";
-        cout << "Circuit " << i + 1 << ":\n";
-        if (!circuitValidity[i])
-            cout << "[!] This circuit is INVALID.\n";
-        circuits[i].printAll();
-    }
+//    cout << "\n All Circuits Summary:\n";
+//    for (int i = 0; i < circuits.size(); ++i)
+//    {
+//        cout << "-----------------------------\n";
+//        cout << "Circuit " << i + 1 << ":\n";
+//        if (!circuitValidity[i])
+//            cout << "[!] This circuit is INVALID.\n";
+//        circuits[i].printAll();
+//    }
 
     return 0;
 }
