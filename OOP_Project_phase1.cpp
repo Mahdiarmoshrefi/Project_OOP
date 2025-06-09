@@ -320,24 +320,89 @@ public:
         return Voffset + Vamplitude * sin(2 * M_PI * frequency * t);
     }
 };
-class Node {
-    string id;
-    bool grounded;
+class VCVS : public Component {
+    string ctrlNode1, ctrlNode2;
+    double gain;
+
 public:
-    Node(const string& id) : id(id), grounded(false) {}
-    const string& getID() const {
-        return id;
-    }
-    void setID(const string& newID) {
-        id = newID;
-    }
-    void setGrounded(bool g) {
-        grounded = g;
-    }
-    bool isGrounded() const {
-        return grounded;
+    VCVS(const string& id, const string& n1, const string& n2, const string& c1, const string& c2, double g)
+            : Component("VCVS", id, n1, n2), ctrlNode1(c1), ctrlNode2(c2), gain(g) {}
+
+    string getName() const override { return "E" + id; }
+
+    void print() const override {
+        cout << "VCVS " << id << ": " << node1 << " -> " << node2
+             << ", controlled by " << ctrlNode1 << " - " << ctrlNode2
+             << ", gain = " << gain << endl;
     }
 };
+
+class VCCS : public Component {
+    string ctrlNode1, ctrlNode2;
+    double gain;
+
+public:
+    VCCS(const string& id, const string& n1, const string& n2, const string& c1, const string& c2, double g)
+            : Component("VCCS", id, n1, n2), ctrlNode1(c1), ctrlNode2(c2), gain(g) {}
+
+    string getName() const override { return "G" + id; }
+
+    void print() const override {
+        cout << "VCCS " << id << ": " << node1 << " -> " << node2
+             << ", controlled by " << ctrlNode1 << " - " << ctrlNode2
+             << ", gain = " << gain << endl;
+    }
+};
+
+class CCVS : public Component {
+    string vname;
+    double gain;
+
+public:
+    CCVS(const string& id, const string& n1, const string& n2, const string& vname, double g)
+            : Component("CCVS", id, n1, n2), vname(vname), gain(g) {}
+
+    string getName() const override { return "H" + id; }
+
+    void print() const override {
+        cout << "CCVS " << id << ": " << node1 << " -> " << node2
+             << ", controlled by current through " << vname
+             << ", gain = " << gain << endl;
+    }
+};
+
+class CCCS : public Component{
+    string vname;
+    double gain;
+
+public:
+    CCCS(const string& id, const string& n1, const string& n2, const string& vname, double g)
+            : Component("CCCS", id, n1, n2), vname(vname), gain(g) {}
+
+    string getName() const override { return "F" + id; }
+
+    void print() const override {
+        cout << "CCCS " << id << ": " << node1 << " -> " << node2
+             << ", controlled by current through " << vname
+             << ", gain = " << gain << endl;
+    }
+};
+
+class Node{
+    string id;
+    bool grounded = false;
+
+public:
+    Node(const string& id) : id(id) {}
+
+    void setID(const string& newID) { id = newID; }
+    string getID() const { return id; }
+
+    void setGrounded(bool g) { grounded = g; }
+    bool isGrounded() const { return grounded; }
+};
+
+
 
 class Circuit
 {
@@ -378,7 +443,7 @@ public:
         components.push_back(new CurrentSource(name, node1, node2, value));
         cout << "Current Source " << name << " added.\n";
     }
-    // اضافه کردن مقاومت
+
     void addResistor(string& name, string& node1, string& node2, string& valueStr)
     {
         for (const auto& c : components)
@@ -394,7 +459,6 @@ public:
         components.push_back(new Resistor(name, node1, node2, value));
     }
 
-    // حذف مقاومت
     void deleteResistor(string& name)
     {
         for (int i = 0; i < (int)components.size(); ++i)
@@ -409,7 +473,6 @@ public:
         throw runtime_error("Error: Cannot delete resistor; component not found");
     }
 
-    // اضافه کردن خازن
     void addCapacitor(string& name, string& node1, string& node2, string& valueStr)
     {
         if (name.empty() || name[0] != 'C')
@@ -429,7 +492,6 @@ public:
         components.push_back(new Capacitor(name, node1, node2, value));
     }
 
-    // حذف خازن
     void deleteCapacitor(const string& name)
     {
         for (int i = 0; i < (int)components.size(); ++i)
@@ -447,8 +509,7 @@ public:
         throw runtime_error("Error: Cannot delete capacitor; component not found");
     }
 
-    void addSineVoltage(const string& name, const string& node1, const string& node2,
-                        double offset, double amplitude, double frequency)
+    void addSineVoltage(const string& name, const string& node1, const string& node2, double offset, double amplitude, double frequency)
     {
 
         for (const auto& c : components)
@@ -461,8 +522,6 @@ public:
         components.push_back(new SineVoltageSource(name, node1, node2, offset, amplitude, frequency));
     }
 
-
-    // اضافه کردن سلف
     void addInductor(string& name, string& node1, string& node2, string& valueStr)
     {
         if (name.empty() || name[0] != 'L')
@@ -482,7 +541,6 @@ public:
         components.push_back(new Inductor(name, node1, node2, value));
     }
 
-    // حذف سلف
     void deleteInductor(const string& name)
     {
         for (int i = 0; i < (int)components.size(); ++i)
@@ -500,7 +558,6 @@ public:
         throw runtime_error("Error: Cannot delete inductor; component not found");
     }
 
-    // اضافه کردن دیود
     void addDiode(const string& name, const string& node1, const string& node2, const string& model)
     {
         if (name.empty() || name[0] != 'D')
@@ -519,7 +576,6 @@ public:
         components.push_back(new Diode(name, node1, node2, model));
     }
 
-    // حذف دیود
     void deleteDiode(const string& name)
     {
         for (int i = 0; i < (int)components.size(); ++i)
@@ -537,7 +593,6 @@ public:
         throw runtime_error("Error: Cannot delete diode; component not found");
     }
 
-    // گرفتن یا ایجاد نود
     Node* getOrCreateNode(const string& id)
     {
         for (Node* node : nodes)
@@ -550,15 +605,12 @@ public:
         return newNode;
     }
 
-    // اضافه کردن گره زمین
     void addGround(const string& name)
     {
-        Node* node = getOrCreateNode(name);
+        Node *node = getOrCreateNode(name);
         node->setGrounded(true);
         cout << "Ground connected to node " << name << " successfully." << endl;
     }
-
-    // حذف زمین از گره
     void deleteGround(const string& nodeName)
     {
         for (Node* node : nodes)
@@ -573,7 +625,6 @@ public:
         throw runtime_error("Node does not exist");
     }
 
-    // گرفتن نام همه نودها
     vector<string> getAllNodeNames() const
     {
         vector<string> names;
@@ -584,7 +635,7 @@ public:
         return names;
     }
 
-    // چاپ همه کامپوننت‌ها
+
     void printAllComponents() const
     {
         for (const Component* comp : components)
@@ -593,7 +644,6 @@ public:
         }
     }
 
-    // چاپ کامپوننت‌های یک نوع خاص
     void printComponentsOfType(const string& type) const
     {
         bool found = false;
@@ -609,7 +659,6 @@ public:
             cout << "No components of type " << type << " found." << endl;
     }
 
-    // تغییر نام یک نود
     void renameNode(const string& oldName, const string& newName)
     {
         if (!nodeExists(oldName))
@@ -627,7 +676,6 @@ public:
         }
     }
 
-    // چک کردن وجود نود
     bool nodeExists(const string& name) const
     {
         for (const Node* node : nodes)
@@ -640,25 +688,22 @@ public:
 
     bool gndExists = false;
 
-    // اضافه کردن نود (اصلاح شده)
     void addNode(const string& nodeName)
     {
         for (auto node : nodes)
         {
             if (node->getID() == nodeName)
-                return; // اگر هست اضافه نکن
+                return;
         }
         nodes.push_back(new Node(nodeName));
         if (nodeName == "GND")
             gndExists = true;
     }
 
-    // چک کردن وجود GND
     bool hasGND() const
     {
         return gndExists;
     }
-
     void printAll() const
     {
         for (const auto& c : components)
@@ -674,9 +719,28 @@ public:
             else if (auto V = dynamic_cast<const VoltageSource*>(c))
                 V->print();
             else if (auto C = dynamic_cast<const CurrentSource*>(c))
-                c->print();
+                C->print();
+            else if (auto s = dynamic_cast<const SineVoltageSource*>(c))
+                s->print();
+            else if (auto vcvs = dynamic_cast<const VCVS*>(c))
+                vcvs->print();
+            else if (auto vccs = dynamic_cast<const VCCS*>(c))
+                vccs->print();
+            else if (auto ccvs = dynamic_cast<const CCVS*>(c))
+                ccvs->print();
+            else if (auto cccs = dynamic_cast<const CCCS*>(c))
+                cccs->print();
+            else
+                cout << "Unknown component type." << endl;
         }
     }
+
+    void addComponent(Component* c)
+    {
+        components.push_back(c);
+        cout << "[ADDED] " << c->getInfo() << endl;
+    }
+
 };
 
 bool isValVertexID(const string& s)
@@ -845,7 +909,7 @@ void handler(Circuit& circuit, string& input)
     }
     if (input == ".nodes")
     {
-        vector<string> nodeList = circuit.getAllNodeNames(); // NOT const anymore
+        vector<string> nodeList = circuit.getAllNodeNames();
         if (circuit.hasGND() && find(nodeList.begin(), nodeList.end(), "GND") == nodeList.end())
         {
             nodeList.push_back("GND");
@@ -901,24 +965,37 @@ void handler(Circuit& circuit, string& input)
         }
         return;
     }
-    std::regex sinSourceRegex(
-            R"(add\s+V([\w\-\.]+)\s+([\w\-\.]+)\s+([\w\-\.]+)\s+SIN\s*\(\s*([+-]?\d+(?:\.\d+)?)\s+([+-]?\d+(?:\.\d+)?)\s+([+-]?\d+(?:\.\d+)?)\s*\))", std::regex_constants::icase);
-
-    if (std::regex_match(input, match, sinSourceRegex))
-    {
-        string id = match[1];
-        string node1 = match[2];
-        string node2 = match[3];
-        double Voffset = std::stod(match[4]);
-        double Vamplitude = std::stod(match[5]);
-        double freq = std::stod(match[6]);
-
-        circuit.addSineVoltage(id, node1, node2, Voffset, Vamplitude, freq);
+    regex vcvsRegex(R"(^add\s+E([A-Za-z0-9_]+)\s+(\w+)\s+(\w+)\s+(\w+)\s+(\w+)\s+([+-]?\d*\.?\d+)$)");
+    if (regex_match(input, match, vcvsRegex)) {
+        string id = match[1], n1 = match[2], n2 = match[3], c1 = match[4], c2 = match[5];
+        double gain = stod(match[6]);
+        circuit.addComponent(new VCVS(id, n1, n2, c1, c2, gain));
+        return;
     }
-    else
-    {
-        cerr << "[SYNTAX ERROR] Invalid syntax for sine voltage source. Expected format:\n";
-        cerr << "add V<name> <node+> <node-> SIN(<Voffset> <Vamplitude> <Frequency>)\n";
+
+
+    regex vccsRegex(R"(^add\s+G([A-Za-z0-9_]+)\s+(\w+)\s+(\w+)\s+(\w+)\s+(\w+)\s+([+-]?\d*\.?\d+)$)");
+    if (regex_match(input, match, vccsRegex)) {
+        string id = match[1], n1 = match[2], n2 = match[3], c1 = match[4], c2 = match[5];
+        double gain = stod(match[6]);
+        circuit.addComponent(new VCCS(id, n1, n2, c1, c2, gain));
+        return;
+    }
+
+    regex ccvsRegex(R"(^add\s+H([A-Za-z0-9_]+)\s+(\w+)\s+(\w+)\s+(\w+)\s+([+-]?\d*\.?\d+)$)");
+    if (regex_match(input, match, ccvsRegex)) {
+        string id = match[1], n1 = match[2], n2 = match[3], vname = match[4];
+        double gain = stod(match[5]);
+        circuit.addComponent(new CCVS(id, n1, n2, vname, gain));
+        return;
+    }
+
+    regex cccsRegex(R"(^add\s+F([A-Za-z0-9_]+)\s+(\w+)\s+(\w+)\s+(\w+)\s+([+-]?\d*\.?\d+)$)");
+    if (regex_match(input, match, cccsRegex)) {
+        string id = match[1], n1 = match[2], n2 = match[3], vname = match[4];
+        double gain = stod(match[5]);
+        circuit.addComponent(new CCCS(id, n1, n2, vname, gain));
+        return;
     }
     throw SyntaxError();
 }
@@ -927,13 +1004,13 @@ void validateCircuit(Circuit& circuit)
     auto& nodes = circuit.getNodes();
     auto& components = circuit.getComponents();
 
-    // 1. بررسی وجود دقیق یک گره زمین
     int groundCount = 0;
     for (auto node : nodes)
     {
-        if (node->getID() == "0" || node->getID() == "GND" || node->getID() == "ground")  // این‌ها معمولاً اسم زمین هستن
+        if (node->isGrounded()) // 👈 درست‌ترین روش
             groundCount++;
     }
+
     if (groundCount == 0)
         throw runtime_error("Error: No ground node detected in the circuit.");
     if (groundCount > 1)
@@ -954,31 +1031,68 @@ void validateCircuit(Circuit& circuit)
             throw runtime_error("Error: Duplicate component name detected: " + comp->getID());
         compNames.insert(comp->getID());
     }
-
 }
-
 int main()
 {
-    Circuit circuit;
+    vector<Circuit> circuits;
+    vector<bool> circuitValidity;
+    Circuit currentCircuit;
     string line;
+
     cout << "Enter commands (type 'exit' to quit):\n";
     while (true)
     {
         cout << "> ";
         getline(cin, line);
+
         if (line == "exit")
+        {
+            circuits.push_back(currentCircuit);
+            try {
+                validateCircuit(currentCircuit);
+                circuitValidity.push_back(true);
+            } catch (const exception& ex) {
+                cout << "[ERROR] Final circuit is invalid:\n" << ex.what() << endl;
+                circuitValidity.push_back(false);  
+            }
             break;
-        try
-        {
-            handler(circuit, line);
         }
-        catch (const exception& ex)
+
+        if (line == "another circuit")
         {
-            cout << ex.what() << endl;
+            circuits.push_back(currentCircuit);  
+            try {
+                validateCircuit(currentCircuit);
+                circuitValidity.push_back(true);
+            } catch (const exception& ex) {
+                cout << "[ERROR] Cannot start a new circuit:\n" << ex.what() << endl;
+                circuitValidity.push_back(false);
+            }
+
+            currentCircuit = Circuit();  
+            cout << "Switched to a new circuit.\n";
+            continue;
+        }
+
+        try {
+            handler(currentCircuit, line);
+        } catch (const exception& ex) {
+            cout << "[Exception] " << ex.what() << endl;
         }
     }
-    validateCircuit(circuit);
-    cout << endl << "Final circuit:" << endl;
-    circuit.printAll();
+
+    cout << "\n All Circuits Summary:\n";
+    for (int i = 0; i < circuits.size(); ++i)
+    {
+        cout << "-----------------------------\n";
+        cout << "Circuit " << i + 1 << ":\n";
+        if (!circuitValidity[i])
+            cout << "[!] This circuit is INVALID.\n";
+
+        circuits[i].printAll();
+    }
+
     return 0;
 }
+
+
