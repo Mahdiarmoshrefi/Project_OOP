@@ -745,6 +745,7 @@ public:
 
 };
 
+vector<Circuit> circuits;
 bool isValVertexID(const string& s)
 {
     if (s.empty())
@@ -757,73 +758,6 @@ bool isValVertexID(const string& s)
     return true;
 }
 
-void showExistingSchematics() {
-    string folderPath = "./schematics";
-    vector<string> filenames;
-
-    for (const auto& entry : fs::directory_iterator(folderPath)) {
-        if (entry.is_regular_file()) {
-            string name = entry.path().filename().string();
-            filenames.push_back(name);
-        }
-    }
-
-    if (filenames.empty()) {
-        cout << "No schematics found in the 'schematics' folder.\n";
-        return;
-    }
-
-    while (true) {
-        cout << "-choose existing schematic:\n";
-        for (int i = 0; i < filenames.size(); ++i) {
-            string name = filenames[i];
-            size_t dot = name.find_last_of('.');
-            if (dot != string::npos) name = name.substr(0, dot);
-            cout << i + 1 << "-" << name << '\n';
-        }
-
-        cout << "Type a number to view schematic, or 'return' to go back:\n";
-        string input;
-        getline(cin, input);
-
-        if (input == "return") break;
-
-        bool isValid = true;
-        for (char c : input) {
-            if (!isdigit(c)) {
-                isValid = false;
-                break;
-            }
-        }
-
-        if (!isValid) {
-            cout << "-Error : Inappropriate input\n";
-            continue;
-        }
-
-        int idx = stoi(input);
-        if (idx < 1 || idx > filenames.size()) {
-            cout << "-Error : Inappropriate input\n";
-            continue;
-        }
-
-        string fullPath = folderPath + "/" + filenames[idx - 1];
-        ifstream file(fullPath);
-        if (!file.is_open()) {
-            cout << "Failed to open file: " << fullPath << '\n';
-            continue;
-        }
-
-        cout << "\nContents of " << filenames[idx - 1] << ":\n";
-        string line;
-        while (getline(file, line)) {
-            cout << line << '\n';
-        }
-        file.close();
-
-        cout << "\n---------------------------\n\n";
-    }
-}
 void handler(Circuit& circuit, string& input)
 {
     smatch match;
@@ -1066,6 +1000,22 @@ void handler(Circuit& circuit, string& input)
         circuit.addComponent(new CCCS(id, n1, n2, vname, gain));
         return;
     }
+    else if (input.substr(0, 8) == "NewFile ")
+    {
+        string path = input.substr(8);
+        path.erase(0, path.find_first_not_of(" \t\n\r"));
+        path.erase(path.find_last_not_of(" \t\n\r") + 1);
+
+        ofstream newFile(path, ios::app);
+        if (!newFile) {
+            throw runtime_error("[-] Error creating file at: " + path);
+        }
+        else {
+            cout << "[+] File created or opened successfully: " << path << endl;
+        }
+        return;
+    }
+
     throw SyntaxError();
 }
 void validateCircuit(Circuit& circuit)
@@ -1102,12 +1052,6 @@ void validateCircuit(Circuit& circuit)
     }
 }
 
-vector<string> schematics = {
-        "schematics/draft1.txt",
-        "schematics/draft2.txt",
-        "schematics/draft3.txt",
-        "schematics/elecphase1.txt"
-};
 bool isNumber(const string& s) {
     for (char c : s) if (!isdigit(c)) return false;
     return !s.empty();
@@ -1148,9 +1092,179 @@ void loadSchematicFromFile(const string& filepath, Circuit& currentCircuit)
     file.close();
 }
 
+extern vector<Circuit> circuits;
+
+bool parseSchematicFile(const string& fullPath, Circuit& circuit)
+{
+    ifstream file(fullPath);
+    if (!file.is_open()) {
+        cout << "Failed to open file: " << fullPath << '\n';
+        return false;
+    }
+
+    string line;
+    bool hasEnd = false;
+    while (getline(file, line)) {
+        if (line == ".end") {
+            hasEnd = true;
+            break;
+        }
+
+        istringstream iss(line);
+        string type, name, node1, node2, value;
+        if (!(iss >> type >> name >> node1 >> node2 >> value)) {
+            cout << "Invalid line format: " << line << '\n';
+            continue;
+        }
+
+        string cmd;
+        if (type == "V") {
+            type = "VoltageSource";
+            cmd = "add " + type + " " + name + " " + node1 + " " + node2 + " " + value;
+        } else {
+            cmd = "add " + type + name + " " + node1 + " " + node2 + " " + value;
+        }
+
+        try {
+            handler(circuit, cmd);
+        } catch (const exception& ex) {
+            cout << "[Exception while parsing] " << ex.what() << endl;
+        }
+    }
+
+    return hasEnd;
+}
+
+void handleNewFile(const string& filePath)
+{
+    if (!fs::exists(filePath)) {
+        cout << "File not found: " << filePath << '\n';
+        return;
+    }
+
+    Circuit circuit;
+    bool hasEnd = parseSchematicFile(filePath, circuit);
+    circuits.push_back(circuit);
+
+    cout << "File loaded: " << filePath << '\n';
+    if (!hasEnd) {
+        cout << "This schematic has no '.end'. You can still add components using the interactive mode.\n";
+    }
+}
+
+void showExistingSchematics() {
+    string folderPath = "./schematics";
+    vector<string> filenames;
+
+    for (const auto& entry : fs::directory_iterator(folderPath)) {
+        if (entry.is_regular_file()) {
+            string name = entry.path().filename().string();
+            filenames.push_back(name);
+        }
+    }
+
+    if (filenames.empty()) {
+        cout << "No schematics found in the 'schematics' folder.\n";
+        return;
+    }
+
+    while (true) {
+        cout << "-choose existing schematic:\n";
+        for (int i = 0; i < filenames.size(); ++i) {
+            string name = filenames[i];
+            size_t dot = name.find_last_of('.');
+            if (dot != string::npos) name = name.substr(0, dot);
+            cout << i + 1 << "-" << name << '\n';
+        }
+
+        cout << "Type a number to view schematic, or 'return' to go back:\n";
+        string input;
+        getline(cin, input);
+
+        if (input == "return") break;
+
+        bool isValid = all_of(input.begin(), input.end(), ::isdigit);
+        if (!isValid) {
+            cout << "-Error : Inappropriate input\n";
+            continue;
+        }
+
+        int idx = stoi(input);
+        if (idx < 1 || idx > filenames.size()) {
+            cout << "-Error : Inappropriate input\n";
+            continue;
+        }
+
+        string fullPath = folderPath + "/" + filenames[idx - 1];
+
+        ifstream viewFile(fullPath);
+        if (!viewFile.is_open()) {
+            cout << "Failed to open file: " << fullPath << '\n';
+            continue;
+        }
+
+        cout << "\nContents of " << filenames[idx - 1] << ":\n";
+        string line;
+        while (getline(viewFile, line)) {
+            cout << line << '\n';
+        }
+        viewFile.close();
+
+        cout << "\n---------------------------\n\n";
+
+        Circuit circuit;
+        bool hasEnd = parseSchematicFile(fullPath, circuit);
+        circuits.push_back(circuit);
+        Circuit& currentCircuit = circuits.back();
+        if (!hasEnd) {
+            cout << "This schematic has no '.end'. You can add components:\n";
+
+            ofstream outFile(fullPath, ios::app);
+            if (!outFile.is_open()) {
+                cout << "Failed to open file for writing: " << fullPath << '\n';
+                continue;
+            }
+
+            while (true) {
+                cout << "Enter component (e.g., R R1 n1 n2 10) or '.end' to finish:\n";
+                string cmd;
+                getline(cin, cmd);
+
+                if (cmd == ".end") {
+                    outFile << ".end\n";
+                    break;
+                }
+
+                istringstream iss(cmd);
+                string type, name, node1, node2, value;
+                if (!(iss >> type >> name >> node1 >> node2 >> value)) {
+                    cout << "Invalid format. Try again.\n";
+                    continue;
+                }
+
+                string addCmd;
+                if (type == "V") {
+                    addCmd = "add VoltageSource " + name + " " + node1 + " " + node2 + " " + value;
+                } else {
+                    addCmd = "add " + type + name + " " + node1 + " " + node2 + " " + value;
+                }
+
+                try {
+                    handler(circuits.back(), addCmd);
+                    outFile << cmd << '\n';
+                } catch (const exception& ex) {
+                    cout << "[Handler Error] " << ex.what() << endl;
+                }
+            }
+
+            outFile.close();
+            cout << "Components added and saved.\n";
+        }
+    }
+}
+
 int main()
 {
-    vector<Circuit> circuits;
     vector<bool> circuitValidity;
     Circuit currentCircuit;
     string line;
