@@ -122,26 +122,20 @@ double parseCapValue(const string& val)
 
 double parseInductance(const string& s)
 {
+    double num;
+    char suffix = s.back();
     try {
-        size_t idx;
-        double val = stod(s, &idx);
-        string unit = s.substr(idx);
-        if (unit == "m")
-            val *= 1e-3;
-        else if (unit == "u" || unit == "µ")
-            val *= 1e-6;
-        else if (unit == "n")
-            val *= 1e-9;
-        else if (unit.empty())
-            val *= 1;
-        else if (unit.find('e') != string::npos || unit.find('E') != string::npos)
-            val = stod(s);
-        else throw SyntaxError("Error: Invalid unit for inductance");
-        return val;
+        if (suffix == 'u' || suffix == 'U')
+            return stod(s.substr(0, s.size() - 1)) * 1e-6;
+        if (suffix == 'n' || suffix == 'N')
+            return stod(s.substr(0, s.size() - 1)) * 1e-9;
+        if (suffix == 'f' || suffix == 'F')
+            return stod(s.substr(0, s.size() - 1));
+        return stod(s);
     }
     catch (...)
     {
-        throw SyntaxError("Error: Invalid value for inductance");
+        throw SyntaxError("Error: Invalid inductor value");
     }
 }
 
@@ -678,6 +672,7 @@ public:
         }
     }
 
+
     bool nodeExists(const string& name) const
     {
         for (const Node* node : nodes)
@@ -761,6 +756,21 @@ bool isValVertexID(const string& s)
 void handler(Circuit& circuit, string& input)
 {
     smatch match;
+    regex sineVoltageRegex(R"(^add\s+VoltageSource\s+(\w+)\s+(\w+)\s+(\w+)\s+SIN\(\s*([+-]?\d*\.?\d+)\s+([+-]?\d*\.?\d+)\s+([+-]?\d*\.?\d+)\s*\)$)");
+    if (regex_match(input, match, sineVoltageRegex))
+    {
+        string name = match[1].str();
+        string node1 = match[2].str();
+        string node2 = match[3].str();
+
+        double offset = stod(match[4].str());
+        double amplitude = stod(match[5].str());
+        double frequency = stod(match[6].str());
+
+        circuit.addSineVoltage(name, node1, node2, offset, amplitude, frequency);
+        cout << "Sine voltage source " << name << " added successfully." << endl;
+        return;
+    }
     regex voltageRegex(R"(^add\s+VoltageSource\s+(\w+)\s+(\w+)\s+(\w+)\s+([+-]?\d*\.?\d+(?:[eE][+-]?\d+)?))");
     regex currentRegex(R"(^add\s+CurrentSource\s+(\w+)\s+(\w+)\s+(\w+)\s+([+-]?\d*\.?\d+(?:[eE][+-]?\d+)?))");
 
@@ -824,6 +834,7 @@ void handler(Circuit& circuit, string& input)
         cout << "Capacitor " << name << " added successfully." << endl;
         return;
     }
+
     regex delCapRegex(R"(^delete\s+([Cc][A-Za-z0-9_]+)$)");
     if (regex_match(input, match, delCapRegex))
     {
